@@ -4,6 +4,7 @@ Function to return a goo.gl adddress.
 
 import urllib2
 import json
+from modules.moduledeps import googl
 
 def command(ircbot, source, nick, mask, args):
 	"""Takes a space-separated list of websites and returns their shortened goo.gl form / Usage: %PREFIX%BOLDgoogl%RESET http://foo.com http://bar.com"""
@@ -14,11 +15,7 @@ def command(ircbot, source, nick, mask, args):
 	headers = {'Content-Type' : 'application/json'}
 	for site in args:
 		try:
-			data=json.dumps({'longUrl':site,'key':ircbot.config.googleapikey})
-			x = urllib2.Request("https://www.googleapis.com/urlshortener/v1/url", headers=headers, data=data)
-			x = urllib2.urlopen(x) #open it
-			x = json.load(x) #load it
-			result.append(x['id'])
+			result.append(googl.googl(site, ircbot.config.googleapikey))
 		except Exception, e:
 			print e
 	ircbot.msg(source, " ".join(result))

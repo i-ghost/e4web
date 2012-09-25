@@ -3,11 +3,12 @@ Queries a Source server using SourceQuery
 """
 
 from socket import gethostbyname
-from modules.moduledeps import SourceQuery # Google it
+from modules.moduledeps import SourceQuery, googl
 from operator import itemgetter
 import urllib, urllib2
 
 def command(ircbot, source, nick, mask, args):
+	"""Queries a Source engine server using the A2S protocol / Usage: %BOLD%PREFIXquery%RESET ip|hostname<:port>"""
 	ip = None
 	#get ip
 	args = u" ".join(args).partition(u":")
@@ -46,7 +47,7 @@ def command(ircbot, source, nick, mask, args):
 						'api_paste_name' : "%s - cvars" % (queryInfo[u"hostname"])
 						}))
 						
-	pasteResponse = googl(urllib2.urlopen(pasteData).read())
+	pasteResponse = googl.googl(urllib2.urlopen(pasteData).read(), ircbot.config.googleapikey)
 	if pasteResponse.startswith(u"Post"):
 		pasteResponse = "Couldn't paste cvars"
 	tags, passworded, OS = None, None, None
@@ -82,19 +83,3 @@ def command(ircbot, source, nick, mask, args):
 				port
 				)
 	ircbot.msg(source, message)
-	
-def googl(request):
-	'''
-	Function to return a goo.gl adddress.
-	Returns input if shortened url can't be fetched
-	Example: print googl('http://google.com')
-	'''
-	try:
-		x = urllib2.Request("https://www.googleapis.com/urlshortener/v1/url",
-		headers = {'Content-Type' : 'application/json'},
-		data=json.dumps({'longUrl':request,'key':config['googleapikey']}))
-		x = urllib2.urlopen(x) #open it
-		x = json.load(x) #load it
-		return x['id']
-	except:
-		return request

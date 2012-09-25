@@ -1,1 +1,2 @@
-*.py*
+SourceQuery.py*
+!__init__.py

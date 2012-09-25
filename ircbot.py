@@ -9,14 +9,14 @@ TODO:
 * Write event handlers.
 * Maybe make configuration loading use ConfigParser instead of just loading it as a module, would allow writing any changes made during runtime.
 * More docstring substitution options.
+* Add ability to authorise with bot instead of (or in addition to) comparing userhost to entries in config file.
 """
 
 class IRCBot(irc):
-	def __init__(self, prefix=u":", configfile=u"ircbotConfig", modulesdir=u"modules"):
+	def __init__(self, prefix=u":", configfile=u"ircbotConfig"):
 		irc.__init__(self)
 		self.prefix = prefix
 		self.configfile = configfile
-		self.modulesdir = modulesdir
 		self.server = self.server()
 		self.load_config()
 		self.load_modules()
@@ -92,10 +92,10 @@ class IRCBot(irc):
 	def load_modules(self):
 		"""Load all modules, sans those defined in the blacklist in the config"""
 		self.modules = {}
-		for file in os.listdir(self.modulesdir):
+		for file in os.listdir(u"modules"):
 			if not file.startswith(u"_") and file.endswith(u".py"):
 				name = file[:-3]
-				file = os.path.join(os.getcwd(), self.modulesdir, (os.path.basename(file))) # create an abs path to the file
+				file = os.path.join(os.getcwd(), u"modules", (os.path.basename(file))) # create an abs path to the file
 				if name not in self.config.blacklist:
 					self._import_module(name, file)
 				
@@ -130,6 +130,7 @@ class IRCBot(irc):
 		
 	def core_reload(self, source, nick, mask, args):
 		"""Loads/reloads modules; specify '*' as the first argument to reload all modules. If the module is not already loaded, it is loaded and removed from the runtime blacklist / Usage: %PREFIX%BOLDreload%RESET module1 module2"""
+		if mask != self.config.owner: self.msg(source, u"Unauthorised"); return; # TODO: make these function decorators instead
 		if not args:
 			self.msg(source, self.core_reload.__doc__, notice=True)
 			return
@@ -140,7 +141,7 @@ class IRCBot(irc):
 			result = []
 			for arg in args:
 				if arg not in self.modules:
-					p = os.path.join(os.getcwd(), self.modulesdir, (os.path.basename("%s.py") % (arg)))
+					p = os.path.join(os.getcwd(), u"modules", (os.path.basename("%s.py") % (arg)))
 					if os.path.exists(p):
 						result.append(u"New module: %s" % (self._import_module(arg, p)))
 				elif arg in self.modules:
@@ -153,6 +154,7 @@ class IRCBot(irc):
 			
 	def core_unload(self, source, nick, mask, args):
 		"""Unloads modules; specify '*' as the first argument to unload all modules. Unloaded modules are added to the blacklist. Modules defined in the config whitelist are never unloaded. / Usage: %PREFIX%BOLDunload%RESET module1 module2"""
+		if mask != self.config.owner: self.msg(source, u"Unauthorised"); return;
 		if not args:
 			self.msg(source, self.core_reload.__doc__, notice=True)
 			return
@@ -190,14 +192,13 @@ class IRCBot(irc):
 		
 	def core_rehash(self, source, nick, mask, args):
 		"""Usage: %PREFIX%BOLDrehash%RESET"""
-		if mask == self.config.owner:
-			self.load_config()
-			self.msg(source, u"Configuration reloaded.")
-		else:
-			self.msg(source, u"Unauthorised.")
+		if mask != self.config.owner: self.msg(source, u"Unauthorised"); return;
+		self.load_config()
+		self.msg(source, u"Configuration reloaded.")
 		
 	def core_join(self, source, nick, mask, args):
 		"""Join channels / Usage: %PREFIX%BOLDjoin%RESET chan1<:key> chan2 chan3<:key> ..."""
+		if mask not in self.config.trusted: self.msg(source, u"Unauthorised"); return;
 		if not args:
 			self.msg(source, self.core_join.__doc__, notice=True)
 			return
@@ -210,6 +211,7 @@ class IRCBot(irc):
 				
 	def core_part(self, source, nick, mask, args): # FIXME: doesn't seem to work ?
 		"""Part channels / Usage %PREFIX%BOLDpart%RESET chan1<:reason> chan2 chan3<:reason> ..."""
+		if mask not in self.config.trusted: self.msg(source, u"Unauthorised"); return;
 		for arg in args:
 			try:
 				chan, reason = arg.partition(u":")[0], arg.partition(u":")[2]
@@ -221,6 +223,7 @@ class IRCBot(irc):
 				
 	def core_quit(self, source, nick, mask, args):
 		"""Send a quit message to the server / Usage %PREFIX%BOLDquit%RESET <message>"""
+		if mask != self.config.owner: self.msg(source, u"Unauthorised"); return;
 		message = u"Received instruction to quit."
 		if args:
 			message = u" ".join(args)
@@ -229,6 +232,7 @@ class IRCBot(irc):
 		
 	def core_ctcp_action(self, source, nick, mask, args):
 		"""Sends a CTCP ACTION to a target / Usage %PREFIX%BOLDaction%RESET <target:>action"""
+		if mask not in self.config.trusted: self.msg(source, u"Unauthorised"); return;
 		args = u" ".join(args).partition(u":")
 		if args[1] == u":":
 			target, action = args[0], args[2]
@@ -242,6 +246,7 @@ class IRCBot(irc):
 		
 	def core_msg(self, source, nick, mask, args):
 		"""Sends a message as the bot to a target / Usage %PREFIX%BOLDmsg%RESET <target:>message"""
+		if mask not in self.config.trusted: self.msg(source, u"Unauthorised"); return;
 		args = u" ".join(args).partition(u":")
 		if args[1] == u":":
 			target, message = args[0], args[2]
@@ -255,6 +260,7 @@ class IRCBot(irc):
 		
 	def core_nick(self, source, nick, mask, args):
 		"""Change the bot's nick / Usage %PREFIX%BOLDnick%RESET new_nick""" # FIXME: isn't picked up by help
+		if mask != self.config.owner: self.msg(source, u"Unauthorised"); return;
 		newnick = args[0]
 		self.server.nick(newnick)
 		
@@ -279,7 +285,7 @@ class IRCBot(irc):
 		elif args[0] in self.modules:
 			self.msg(nick, self.modules[args[0]].command.__doc__, notice=True)
 		elif args[0] in self.core:
-			self.msg(nick, self.core[args[0]].command.__doc__, notice=True)
+			self.msg(nick, self.core[args[0]].__doc__, notice=True)
 		else:
 			self.msg(nick, u"Unrecognised command: '%s', use %shelp for a list of available commands" % (args[0], self.prefix), notice=True)
 
@@ -349,30 +355,27 @@ class IRCBot(irc):
 	def message_handler(self, connection, event):
 		"""Handle all incoming messages"""
 		message = event.arguments()[0] # irclib gives us a list of length 1 for some reason
-		mask = event.source()
-		nick = irclib.nm_to_n(mask)
+		mask = irclib.nm_to_uh(event.source()) #userhost portion of nickmask
+		nick = irclib.nm_to_n(event.source())
 		if event.target() == self.server.get_nickname(): # It's a private (query) message /
-			source = irclib.nm_to_n(event.source()) # so return to sender
+			source = irclib.nm_to_n(nick) # so return to sender
 		else:
-			source = event.target() # message was sent to a channel
-		if message.startswith(self.prefix) and not message == self.prefix:
+			source = event.target() # message was sent to a channel, so reply to there
+		if message.startswith(self.prefix) and not message == self.prefix: # ignore just the prefix
 			module, args = message.split(self.prefix, 1)[1].split()[0].lower(), message.split(self.prefix, 1)[1].split()[1:]
 			print(u"%s received: %s / Args: %s / Sender: %s / Target: %s") % (event.eventtype(), module, args, event.source(), event.target())
 			if module in self.modules:
 				try:
 					self.modules[module].command(self, source, nick, mask, args)
 				except Exception, e:
-					print(u"%s: ") % (e)
-			elif module in self.core and mask in self.config.trusted:
+					print(u"%s: %s") % (module, e)
+			elif module in self.core:
 				try:
 					self.core[module](source, nick, mask, args)
 				except Exception, e:
-					print(u"%s: ") % (e)
+					print(u"%s: %s") % (module, e)
 			else:
-				if irclib.is_channel(event.target()):
-					self.server.privmsg(event.target(), u"Unrecognised command")
-				else:
-					self.server.privmsg(irclib.nm_to_n(event.source()), u"Unrecognised command")
+				self.msg(source, u"Unrecognised command")
 		for listener in self.listeners: # TODO: thread this
 			self.listeners[listener](self, source, nick, mask, message)
 			
