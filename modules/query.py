@@ -3,7 +3,7 @@ Queries a Source server using SourceQuery
 """
 
 from socket import gethostbyname
-from modules.moduledeps import SourceQuery, googl
+from modules.moduledeps import SourceQuery, googl, pasteee
 from operator import itemgetter
 import urllib, urllib2
 
@@ -37,19 +37,13 @@ def command(ircbot, source, nick, mask, args):
 		ruleString += u"%s %s\n" % (rule, queryRules[rule])
 	ruleString = ruleString.rstrip(u"\n") # strip trailing newline
 	# pastebin stuff
-	pasteData = urllib2.Request('http://pastebin.com/api/api_post.php',
-						data=urllib.urlencode({
-						'api_dev_key' : ircbot.config.pastebinapikey,
-						'api_option' : 'paste',
-						'api_paste_code' : ruleString,
-						'api_paste_expire_date' : '10M',
-						'api_paste_private' : 1,
-						'api_paste_name' : "%s - cvars" % (queryInfo[u"hostname"])
-						}))
-						
-	pasteResponse = googl.googl(urllib2.urlopen(pasteData).read(), ircbot.config.googleapikey)
-	if pasteResponse.startswith(u"Post"):
-		pasteResponse = "Couldn't paste cvars"
+	pasteResponse = "Couldn't paste cvars"
+	try:
+		pasteData = pasteee.Paste(ruleString, desc="%s - cvars" % (queryInfo[u"hostname"]), key=ircbot.config.pastebinapikey)["link"]
+	except PasteError, e:
+		pasteResponse = e
+	if pasteData:
+		pasteResponse = googl.googl(pasteData, ircbot.config.googleapikey)
 	tags, passworded, OS = None, None, None
 	if u"tag" in queryInfo:
 		tags = "Tags: %s" % (queryInfo[u"tag"])
