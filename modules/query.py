@@ -40,7 +40,7 @@ def command(ircbot, source, nick, mask, args):
 	pasteResponse = "Couldn't paste cvars"
 	try:
 		pasteData = pasteee.Paste(ruleString, desc="%s - cvars" % (queryInfo[u"hostname"]), key=ircbot.config.pastebinapikey)["link"]
-	except PasteError, e:
+	except pasteee.PasteError, e:
 		pasteResponse = e
 	if pasteData:
 		pasteResponse = googl.googl(pasteData, ircbot.config.googleapikey)
