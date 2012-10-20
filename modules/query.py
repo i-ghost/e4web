@@ -38,12 +38,12 @@ def command(ircbot, source, nick, mask, args):
 	ruleString = ruleString.rstrip(u"\n") # strip trailing newline
 	# pastebin stuff
 	pasteResponse = "Couldn't paste cvars"
+	pasteData = None
 	try:
 		pasteData = pasteee.Paste(ruleString, desc="%s - cvars" % (queryInfo[u"hostname"]), key=ircbot.config.pastebinapikey)["link"]
 	except pasteee.PasteError, e:
 		pasteResponse = e
-	if pasteData:
-		pasteResponse = googl.googl(pasteData, ircbot.config.googleapikey)
+	pasteResponse = googl.googl(pasteData, ircbot.config.googleapikey)
 	tags, passworded, OS = None, None, None
 	if u"tag" in queryInfo:
 		tags = "Tags: %s" % (queryInfo[u"tag"])
